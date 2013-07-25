@@ -8,112 +8,128 @@ using log4net.Core;
 
 namespace PostLog
 {
-	public class HttpAppender : AppenderSkeleton
-	{
-		private readonly List<HttpAppenderAttribute> _parameters;
-		private IBodyFormatter _formatter;
+    public class HttpAppender : AppenderSkeleton
+    {
+        private readonly List<HttpAppenderAttribute> _parameters;
+        private IBodyFormatter _formatter;
 
-		public HttpAppender()
-		{
-			_parameters = new List<HttpAppenderAttribute>();
+        public HttpAppender()
+        {
+            _parameters = new List<HttpAppenderAttribute>();
 
-			Method = "POST";
-			UserAgent = "HttpAppender";
-		}
+            Method = "POST";
+            UserAgent = "HttpAppender";
+        }
 
-		public string Method { get; set; }
-		public string UserAgent { get; set; }
-		public string Uri { get; set; }
-		public string FormatterType { get; set; }
-		public string UserId { get; set; }
-		public string Password { get; set; }
+        public string Method { get; set; }
+        public string UserAgent { get; set; }
+        public string Uri { get; set; }
+        public string FormatterType { get; set; }
+        public string UserId { get; set; }
+        public string Password { get; set; }
+        public string AppFailApiToken { get; set; }
+        public string HeaderRequest { get; set; }
 
-		private IBodyFormatter BodyFormatter
-		{
-			get { return _formatter ?? (_formatter = ConstructFormatter(FormatterType)); }
-		}
+        private IBodyFormatter BodyFormatter
+        {
+            get { return _formatter ?? (_formatter = ConstructFormatter(FormatterType)); }
+        }
 
-		public IBodyFormatter ConstructFormatter(string formatterType)
-		{
-			Type type = Type.GetType(formatterType, true);
-			return (IBodyFormatter)Activator.CreateInstance(type);
-		}
+        public IBodyFormatter ConstructFormatter(string formatterType)
+        {
+            Type type = Type.GetType(formatterType, true);
+            return (IBodyFormatter)Activator.CreateInstance(type);
+        }
 
 
-		public void AddParameter(HttpAppenderAttribute item)
-		{
-			_parameters.Add(item);
-		}
+        public void AddParameter(HttpAppenderAttribute item)
+        {
+            _parameters.Add(item);
+        }
 
-		protected override void Append(LoggingEvent loggingEvent)
-		{
-			byte[] bodyBytes;
+        protected override void Append(LoggingEvent loggingEvent)
+        {
+            byte[] bodyBytes;
 
-			try
-			{
-				string body = BodyFormatter.CreateBody(loggingEvent, _parameters);
-				bodyBytes = Encoding.UTF8.GetBytes(body);
-			}
-			catch (Exception e)
-			{
-				ErrorHandler.Error("Failed to create body", e);
-				return;
-			}
+            try
+            {
+                string body = BodyFormatter.CreateBody(loggingEvent, _parameters);
+                bodyBytes = Encoding.UTF8.GetBytes(body);
+            }
+            catch (Exception e)
+            {
+                ErrorHandler.Error("Failed to create body", e);
+                return;
+            }
 
-			HttpWebRequest request = BuildRequest();
+            HttpWebRequest request = BuildRequest();            
 
-			request.BeginGetRequestStream(r =>
-				{
+            request.BeginGetRequestStream(r =>
+                {
 
-					try
-					{
-						Stream stream = request.EndGetRequestStream(r);
-						stream.BeginWrite(bodyBytes, 0, bodyBytes.Length, c =>
-							{
-								try
-								{
-									stream.Dispose();
-									request.BeginGetResponse(a =>
-										{
-											try
-											{
-												request.EndGetResponse(a);
-											}
-											catch (Exception e)
-											{
-												ErrorHandler.Error("Failed to get response", e);
-											}
-										}, null);
-									stream.EndWrite(c);
-								}
-								catch (Exception e)
-								{
-									ErrorHandler.Error("Failed to write", e);
-								}
-							}, null);
+                    try
+                    {
+                        Stream stream = request.EndGetRequestStream(r);
+                        stream.BeginWrite(bodyBytes, 0, bodyBytes.Length, c =>
+                            {
+                                try
+                                {
+                                    stream.Dispose();
+                                    request.BeginGetResponse(a =>
+                                        {
+                                            try
+                                            {
+                                                var aux = request.EndGetResponse(a);
+                                            }
+                                            catch (Exception e)
+                                            {
+                                                ErrorHandler.Error("Failed to get response", e);
+                                            }
+                                        }, null);
+                                    stream.EndWrite(c);
+                                }
+                                catch (Exception e)
+                                {
+                                    ErrorHandler.Error("Failed to write", e);
+                                }
+                            }, null);
 
-					}
-					catch (Exception e)
-					{
+                    }
+                    catch (Exception e)
+                    {
 
-						ErrorHandler.Error("Failed to connect", e);
-					}
-				}, null);
-		}
+                        ErrorHandler.Error("Failed to connect", e);
+                    }
+                }, null);
+        }
 
-		private HttpWebRequest BuildRequest()
-		{
-			var request = (HttpWebRequest)WebRequest.Create(Uri);
-			request.Method = Method;
-			request.UserAgent = UserAgent;
-			request.ContentType = BodyFormatter.ContentType;
+        private HttpWebRequest BuildRequest()
+        {
+            var request = (HttpWebRequest)WebRequest.Create(Uri);
 
-			if (UserId != null && Password != null)
-			{
-				request.Credentials = new NetworkCredential(UserId, Password);
-			}
+            request.Method = Method;
+            request.UserAgent = UserAgent;
+            request.ContentType = BodyFormatter.ContentType;
 
-			return request;
-		}
-	}
+            if (UserId != null && Password != null)
+            {
+                request.Credentials = new NetworkCredential(UserId, Password);
+            }
+
+            if (HeaderRequest != null)
+            {
+                var values = HeaderRequest.Split(new char[] { ';',',' });
+                for (int i = 0; i < values.Length; i++)
+                {
+                    var val = values[i];
+                    if (!String.IsNullOrEmpty(val))
+                    {
+                        request.Headers.Add(val.Trim());
+                    }
+                }
+            }
+
+            return request;
+        }
+    }
 }

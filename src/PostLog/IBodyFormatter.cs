@@ -7,6 +7,8 @@ namespace PostLog
 	{
 		string CreateBody(LoggingEvent loggingEvent, IEnumerable<HttpAppenderAttribute> parameters);
 
+        
+
 		string ContentType { get; }
 	}
 }
