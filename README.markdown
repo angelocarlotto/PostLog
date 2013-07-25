@@ -1,7 +1,7 @@
 PostLog ![project-status](http://stillmaintained.com/statianzo/PostLog.png)
 ===
 
-PostLog is an appender for log4net designed to submit log messages via HTTP.
+PostLog is an appender for log4net designed to submit log messages via HTTP direct to AppFail REST API.
 
 Configuration
 ---
